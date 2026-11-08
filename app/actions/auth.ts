@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { supabaseServer } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { recordConsent } from '@/lib/consent'
+import { signUpError } from '@/lib/auth-errors'
 import { slugify } from '@/lib/triage'
 
 export type FormState = { error?: string; message?: string } | undefined
@@ -30,6 +31,7 @@ export async function signUpAirline(_: FormState, fd: FormData): Promise<FormSta
   if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) return { error: 'Use at least 10 characters with a letter and a number.' }
   if (fd.get('consent') !== 'on') return { error: 'Please accept the Airline Terms and Privacy Policy.' }
   const { data, error } = await (await supabaseServer()).auth.signUp({ email, password, options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`, data: { full_name: name } } })
+  if (error) return { error: signUpError(error) }
   if (error) return { error: 'Could not create the account. Try a different email or password.' }
   const done = { message: 'Check your email to confirm your address. An admin will verify your airline before it appears to customers.' }
   const user = data.user

@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { supabaseServer } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { recordConsent } from '@/lib/consent'
+import { signUpError } from '@/lib/auth-errors'
 import { closeAndRefund } from '@/lib/legal'
 import { resolveAccount, createRecipient, transfer } from '@/lib/paystack'
 import { SERVICES, GRADES } from '@/lib/constants'
@@ -25,6 +26,7 @@ export async function applyLawyer(_: FormState, fd: FormData): Promise<FormState
   if (!files.length || files.length > 4 || files.some((f) => !MIME.includes(f.type)) || files.reduce((n, f) => n + f.size, 0) > 4 * 1024 * 1024) return { error: 'Attach 1 to 4 credential files (images or PDF), 4MB in total.' }
   if (fd.get('consent') !== 'on') return { error: 'Please accept the Lawyer Terms and Privacy Policy.' }
   const { data, error } = await (await supabaseServer()).auth.signUp({ email, password, options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`, data: { full_name: name } } })
+  if (error) return { error: signUpError(error) }
   if (error) return { error: 'Could not create the account. Try a different email or password.' }
   const done = { message: 'Check your email to confirm your address. We will verify your credentials and assign your grade before you appear to customers.' }
   const user = data.user

@@ -1,9 +1,11 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import AdminPanel from '@/components/AdminPanel'
 import { supabaseServer } from '@/lib/supabase/server'
 
 async function Gate() {
+  await connection() // wait for a real request: the login check reads the clock, which Next.js 16 forbids during prerendering
   const sb = await supabaseServer()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/login')

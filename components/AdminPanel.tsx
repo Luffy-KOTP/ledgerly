@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { signOut } from '@/app/actions/auth'
+import { setAirline, setLawyer, lawyerDocs, saveBands, markRegulator, ledgerlyMessage, referToRegulator } from '@/app/actions/admin'
 import { setAirline, setLawyer, lawyerDocs, saveBands, markRegulator } from '@/app/actions/admin'
 import { GRADES, GRADE_LABEL, naira } from '@/lib/constants'
 
@@ -12,16 +13,22 @@ const Table = ({ head, children }: { head: string[]; children: React.ReactNode }
 
 export default function AdminPanel({ email }: { email: string }) {
   const sb = useMemo(() => supabaseBrowser(), [])
+  const [air, setAir] = useState<Row[]>([]), [law, setLaw] = useState<Row[]>([]), [alerts, setAlerts] = useState<Row[]>([]), [cases, setCases] = useState<Row[]>([]), [esc, setEsc] = useState<Row[]>([]), [now, setNow] = useState(0), [bands, setBands] = useState<Band[]>([]), [docs, setDocs] = useState<Record<string, { name: string; url: string }[]>>({}), [pick, setPick] = useState<Record<string, string>>({}), [note, setNote] = useState('')
   const [air, setAir] = useState<Row[]>([]), [law, setLaw] = useState<Row[]>([]), [alerts, setAlerts] = useState<Row[]>([]), [cases, setCases] = useState<Row[]>([]), [bands, setBands] = useState<Band[]>([]), [docs, setDocs] = useState<Record<string, { name: string; url: string }[]>>({}), [pick, setPick] = useState<Record<string, string>>({}), [note, setNote] = useState('')
   const [tick, setTick] = useState(0), reload = () => setTick((n) => n + 1)
   useEffect(() => {
     let live = true
     ;(async () => {
+      const [a, l, al, k, b, cp] = await Promise.all([
       const [a, l, al, k, b] = await Promise.all([
         sb.from('airlines').select('*').order('created_at', { ascending: false }), sb.from('lawyers').select('*').order('created_at', { ascending: false }),
         sb.from('alerts').select('*, airlines(name)').order('created_at', { ascending: false }).limit(50),
         sb.from('legal_cases').select('*, lawyers(full_name), payments(status), payouts(status)').order('created_at', { ascending: false }).limit(100),
         sb.from('platform_settings').select('*'),
+        sb.from('complaints').select('id,ref,status,response_due_at,first_response_at,escalation_level,ledgerly_requested_at,regulator_referred_at,regulator_reference,airlines(name)').order('created_at', { ascending: false }).limit(300),
+      ])
+      if (!live) return
+      setAir(a.data ?? []); setLaw(l.data ?? []); setAlerts(al.data ?? []); setCases(k.data ?? []); setEsc(cp.data ?? []); setNow(Date.now())
       ])
       if (!live) return
       setAir(a.data ?? []); setLaw(l.data ?? []); setAlerts(al.data ?? []); setCases(k.data ?? [])
@@ -46,6 +53,10 @@ export default function AdminPanel({ email }: { email: string }) {
         <button className={btn} onClick={() => run(setAirline(a.id, a.status === 'suspended' ? 'active' : 'suspended', a.verified), 'Status changed.')}>{a.status === 'suspended' ? 'Reinstate' : 'Suspend'}</button></td></tr>)}</Table>
       <h2 className="font-semibold">Critical incidents</h2>
       <Table head={['Airline', 'Incident', 'Source', 'Level', 'Airline response', 'Regulator']}>{alerts.map((a) => <tr key={a.id} className="border-t"><td className="p-3">{a.airlines?.name}</td><td className="p-3">{a.title}</td><td className="p-3">{a.source.replace('_', ' ')}</td><td className="p-3">{a.level}</td><td className="p-3">{a.acknowledged_at ? 'Acknowledged' : <b className="text-red-600">Unacknowledged</b>}</td><td className="p-3">{a.regulator_notified_at ? 'Notified' : <button className={btn} onClick={() => run(markRegulator(a.id), 'Marked as notified.')}>Mark notified</button>}</td></tr>)}</Table>
+      <h2 className="font-semibold">Overdue and escalated complaints</h2>
+      <Table head={['Complaint', 'Airline', 'Status', 'Deadline', 'Ledgerly asked', 'NCAA', 'Actions']}>{esc.filter((c) => !['resolved', 'closed'].includes(c.status) && (c.escalation_level >= 2 || (c.response_due_at && now > 0 && new Date(c.response_due_at).getTime() < now))).map((c) => <tr key={c.id} className="border-t"><td className="p-3 font-medium">{c.ref}</td><td className="p-3">{c.airlines?.name}</td><td className="p-3">{c.status.replace(/_/g, ' ')}</td><td className="p-3">{c.response_due_at ? new Date(c.response_due_at).toLocaleDateString('en-GB') : '–'}{c.first_response_at ? '' : <b className="ml-1 text-red-600">no reply</b>}</td><td className="p-3">{c.ledgerly_requested_at ? 'Yes' : '–'}</td><td className="p-3">{c.regulator_referred_at ? `Referred${c.regulator_reference ? ` (${c.regulator_reference})` : ''}` : '–'}</td><td className="space-x-1 p-3 whitespace-nowrap">
+        <button className={btn} onClick={() => { const t = prompt('Message to the airline and the customer (both can read it):'); if (t) run(ledgerlyMessage(c.id, t), 'Message sent.') }}>Message both</button>
+        {!c.regulator_referred_at && <button className={btn} onClick={() => { if (confirm('Record that you have referred this complaint to the NCAA? The airline will be told.')) { const r = prompt('NCAA reference number (optional):') ?? ''; run(referToRegulator(c.id, r), 'Referral recorded and the airline notified.') } }}>Refer to NCAA</button>}</td></tr>)}</Table>
       <h2 className="font-semibold">Lawyers</h2>
       <Table head={['Lawyer', 'Called', 'Enrolment', 'Requested', 'Grade', 'Status', 'Actions']}>{law.map((l) => <tr key={l.id} className="border-t align-top"><td className="p-3 font-medium">{l.full_name}<span className="block text-xs text-muted">{l.firm} · {l.bar_branch}</span>{docs[l.id] && <span className="block text-xs">{docs[l.id].length ? docs[l.id].map((d) => <a key={d.url} className="mr-2 underline" href={d.url} target="_blank" rel="noopener noreferrer">{d.name}</a>) : 'No documents'}</span>}</td><td className="p-3">{l.call_year}</td><td className="p-3">{l.enrolment_no}</td><td className="p-3">{GRADE_LABEL[l.requested_grade]}</td><td className="p-3">{GRADE_LABEL[l.grade] ?? '–'}</td><td className="p-3">{l.status}</td><td className="space-x-1 p-3 whitespace-nowrap">
         <button className={btn} onClick={async () => setDocs({ ...docs, [l.id]: await lawyerDocs(l.id) })}>Documents</button>

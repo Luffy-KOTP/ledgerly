@@ -3,3 +3,12 @@ export const GRADES = ['junior', 'mid_level', 'senior', 'corporate_firm'] as con
 export const GRADE_LABEL: Record<string, string> = { junior: 'Junior', mid_level: 'Mid-level', senior: 'Senior', corporate_firm: 'Corporate firm' }
 export const GRADE_INFO: Record<string, string> = { junior: 'Recently called to the bar, up to 3 years of experience.', mid_level: '4 to 9 years of practice.', senior: '10+ years, or head of chambers.', corporate_firm: 'Lawyers at established corporate firms.' }
 export const naira = (kobo: number) => '₦' + Math.round(kobo / 100).toLocaleString('en-NG')
+
+export const CATEGORIES = ['Flight Cancellation', 'Flight Delay', 'Lost Baggage', 'Damaged Baggage', 'Denied Boarding', 'Refund Issues', 'Poor Customer Service', 'Overbooking', 'Safety Concerns', 'Other'] as const
+export const DESIRED = ['Full or partial refund', 'Compensation', 'Rebooking', 'Baggage recovery or reimbursement', 'Formal apology', 'Investigation', 'Other'] as const
+export const RESOLUTION_KINDS = ['Refund', 'Compensation', 'Rebooking', 'Baggage recovery', 'Formal apology', 'Other corrective action'] as const
+export const STATUS_LABEL: Record<string, string> = { pending: 'Submitted', received: 'Received', under_review: 'Under review', in_progress: 'In progress', awaiting_customer: 'Awaiting customer', responded: 'Responded', resolution_proposed: 'Resolution proposed', resolved: 'Resolved', escalated: 'Escalated', closed: 'Closed' }
+export const AIRLINE_STATUSES = ['received', 'under_review', 'in_progress', 'awaiting_customer', 'responded'] as const
+export const FINISHED = ['resolved', 'closed']
+export const RESOLUTION_WINDOW_DAYS = 7
+export const NCAA_URL = 'https://www.ncaa.gov.ng'

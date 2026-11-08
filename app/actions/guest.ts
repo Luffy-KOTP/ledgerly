@@ -5,6 +5,7 @@ import { issueOtp, checkOtp } from '@/lib/otp'
 import { setGuest, getGuest, clearGuest } from '@/lib/guest'
 import { isCritical } from '@/lib/triage'
 import { recordConsent } from '@/lib/consent'
+import { CATEGORIES, DESIRED, FINISHED } from '@/lib/constants'
 
 export type Details = { name: string; email: string; phone: string; airline: string; flight: string; date: string; route: string; booking: string }
 type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string }
@@ -48,6 +49,9 @@ export async function submitComplaint(fd: FormData): Promise<Res<{ ref: string; 
   if (!g || g.email !== d.email) return fail('Your verification expired. Please start again.')
   const e = checkDetails(d); if (e) return fail(e)
   const category = s('category'), subject = s('subject'), description = s('description'), rating = Number(s('rating'))
+  const desired = s('desired'), desiredNote = s('desiredNote').slice(0, 1000)
+  if (!(CATEGORIES as readonly string[]).includes(category)) return fail('Choose a category.')
+  if (!(DESIRED as readonly string[]).includes(desired)) return fail('Tell us what you would like the airline to do.')
   if (!CATS.includes(category)) return fail('Choose a category.')
   if (subject.length < 3 || subject.length > 120) return fail('Add a short subject.')
   if (description.length < 30 || description.length > 4000) return fail('Describe the issue in 30 to 4000 characters.')
@@ -60,6 +64,7 @@ export async function submitComplaint(fd: FormData): Promise<Res<{ ref: string; 
   const db = supabaseAdmin(), critical = isCritical(category, subject, description)
   const { data: c, error } = await db.from('complaints').insert({
     airline_id: airline.id, customer_name: d.name, customer_email: d.email, customer_phone: d.phone, flight_number: d.flight, flight_date: d.date,
+    route: d.route || null, booking_ref: d.booking || null, category, subject, description, rating, desired_resolution: desiredNote ? `${desired}: ${desiredNote}` : desired, is_critical: critical, severity: critical ? 'critical' : rating <= 2 ? 'medium' : 'low',
     route: d.route || null, booking_ref: d.booking || null, category, subject, description, rating, is_critical: critical, severity: critical ? 'critical' : rating <= 2 ? 'medium' : 'low',
   }).select('id, ref').single()
   if (error || !c) return fail('Something went wrong. Please try again.')
@@ -93,5 +98,43 @@ export async function verifyTrack(id: string, refIn: string, code: string): Prom
   const { data: c } = await supabaseAdmin().from('complaints').select('customer_email').eq('ref', ref).maybeSingle()
   if (!ok || !c) return fail('That code is wrong or has expired.')
   await setGuest({ purpose: 'track', email: c.customer_email, ref })
+  return { ok: true }
+}
+
+// ---- conversation, resolutions and escalation (all require the verified /track session) ----
+async function mine() {
+  const g = await getGuest('track'); if (!g?.ref) return null
+  const db = supabaseAdmin()
+  const { data: c } = await db.from('complaints').select('id,customer_email,status,response_due_at').eq('ref', g.ref).maybeSingle()
+  return c && c.customer_email === g.email ? { db, c } : null
+}
+export async function customerMessage(body: string): Promise<Res> {
+  const m = await mine(), t = body.trim()
+  if (!m || !t || t.length > 4000) return fail('Write a message first.')
+  if (m.c.status === 'closed') return fail('This complaint is closed.')
+  await m.db.from('complaint_messages').insert({ complaint_id: m.c.id, sender: 'customer', body: t })
+  if (['awaiting_customer', 'responded'].includes(m.c.status)) await m.db.from('complaints').update({ status: 'in_progress' }).eq('id', m.c.id)
+  return { ok: true }
+}
+/** The customer, not the airline, decides whether a proposed resolution settles the complaint. */
+export async function decideResolution(id: string, accept: boolean, comment: string): Promise<Res> {
+  const m = await mine(); if (!m) return fail('Please verify again.')
+  const { data: r } = await m.db.from('complaint_resolutions').update({ status: accept ? 'accepted' : 'rejected', customer_comment: comment.trim().slice(0, 1000) || null, decided_at: new Date().toISOString() }).eq('id', id).eq('complaint_id', m.c.id).eq('status', 'proposed').select('id').maybeSingle()
+  if (!r) return fail('That proposal is no longer open.')
+  await m.db.from('complaints').update(accept ? { status: 'resolved', resolved_at: new Date().toISOString() } : { status: 'in_progress', resolved_at: null }).eq('id', m.c.id)
+  await m.db.from('complaint_events').insert({ complaint_id: m.c.id, kind: 'resolution', detail: accept ? 'Customer accepted the proposed resolution' : 'Customer rejected the proposed resolution' })
+  return { ok: true }
+}
+/** Allowed when the airline is past its resolution deadline, or the customer has rejected an offer. */
+export async function requestIntervention(): Promise<Res> {
+  const m = await mine(); if (!m) return fail('Please verify again.')
+  if (FINISHED.includes(m.c.status)) return fail('This complaint is already finished.')
+  const { data: rej } = await m.db.from('complaint_resolutions').select('id').eq('complaint_id', m.c.id).eq('status', 'rejected').limit(1)
+  const overdue = !!m.c.response_due_at && new Date(m.c.response_due_at) < new Date()
+  if (!overdue && !rej?.length) return fail('You can ask Ledgerly to step in once the airline is past its deadline or you have rejected its offer.')
+  const { data: u } = await m.db.from('complaints').update({ escalation_level: 2, ledgerly_requested_at: new Date().toISOString(), status: 'escalated' }).eq('id', m.c.id).is('ledgerly_requested_at', null).select('id').maybeSingle()
+  if (!u) return fail('Ledgerly has already been asked to step in.')
+  await m.db.from('complaint_events').insert({ complaint_id: m.c.id, kind: 'escalation', detail: 'Customer requested Ledgerly intervention' })
+  await m.db.from('complaint_messages').insert({ complaint_id: m.c.id, sender: 'ledgerly', body: 'The customer has asked Ledgerly to step in. Our team will review this complaint and contact the airline.' })
   return { ok: true }
 }

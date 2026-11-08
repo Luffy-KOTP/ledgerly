@@ -9,6 +9,10 @@ Work through the phases in order. Do not skip phase 0: two of its answers change
 
 ## Phase 1. Supabase
 1. Create **two projects**: `ledgerly-staging` and `ledgerly-prod`. Pick the closest region you can (check cross-border data-transfer duties under the Nigeria Data Protection Act).
+2. In each project's SQL editor run `supabase/migrations/001_schema.sql`, then `002_realtime.sql`, then `003_grants.sql`, then `004_payment_status.sql`, then `005_status_values.sql`, then `006_case_management.sql` (run 005 and 006 as two separate runs). Newer Supabase projects do not expose new tables to the Data API until they are granted, so skipping 003 makes the app fail with "permission denied". After running it, the "API DISABLED" badges on the Policies page should disappear.
+3. **Check Row Level Security.** Table Editor should show RLS enabled on every table. Never disable it.
+4. **Authentication settings:** turn on "Confirm email"; set Site URL to your domain and add `http://localhost:3000` and your staging URL to Redirect URLs; set the minimum password length to 10 and enable leaked-password protection if available on your plan; limit sign-up and sign-in rates.
+5. **Custom SMTP** (Authentication > Emails): use the same SMTP account you use for the app (Gmail app password for a pilot, a domain-based provider for launch) so confirmation emails do not depend on Supabase's built-in sender, which is heavily rate limited.
 2. In each project's SQL editor run `supabase/migrations/001_schema.sql`, then `002_realtime.sql`, then `003_grants.sql`, then `004_payment_status.sql`. Newer Supabase projects do not expose new tables to the Data API until they are granted, so skipping 003 makes the app fail with "permission denied". After running it, the "API DISABLED" badges on the Policies page should disappear.
 3. **Check Row Level Security.** Table Editor should show RLS enabled on every table. Never disable it.
 4. **Authentication settings:** turn on "Confirm email"; set Site URL to your domain and add `http://localhost:3000` and your staging URL to Redirect URLs; set the minimum password length to 10 and enable leaked-password protection if available on your plan; limit sign-up and sign-in rates.
@@ -32,6 +36,7 @@ Work through the phases in order. Do not skip phase 0: two of its answers change
 4. **Test access control as every role** (guest, airline A, airline B). Airline A must never see airline B's complaints. In the SQL editor you can also test with `set role authenticated; select set_config('request.jwt.claims', '{"sub":"<user id>"}', true); select count(*) from complaints;`.
 
 ## Phase 3. Email and SMS
+1. **Email (SMTP):** the app sends mail over plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). For a small pilot without a domain, use a Gmail address with an app password (limited to a few hundred emails a day, sent from your Gmail address, may land in spam). Before launch, buy a domain and move to a proper provider (Resend, Brevo, SendGrid or similar), add the SPF, DKIM and DMARC DNS records they give you, and change only the SMTP values.
 1. **Email (Resend):** add your domain, publish the SPF, DKIM and DMARC DNS records, set `RESEND_API_KEY` and `MAIL_FROM`.
 2. **SMS:** pick a Nigerian provider (for example Termii), register your sender ID (this can take days), and add a function beside `sendMail` in `lib/otp.ts` so codes can go by SMS too.
 3. **Status emails:** when a complaint status or `airline_response` changes, email the customer. Do this with a Supabase database webhook that calls a route handler, so customers do not have to keep checking.
@@ -96,6 +101,7 @@ Lawyer registration and workspace (`/lawyer`), customer escalation checkout on `
 These are in the code. Each needs the configuration below before it works.
 
 1. **Run `supabase/migrations/004_payment_status.sql`** in the SQL editor (adds the `pending_payment` case status).
+2. **Environment variables** (`.env.local` locally, Vercel settings in production): `PAYSTACK_SECRET_KEY` (test key first), `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `CRON_SECRET` (any long random string), the `SMTP_*` values and `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL`.
 2. **Environment variables** (`.env.local` locally, Vercel settings in production): `PAYSTACK_SECRET_KEY` (test key first), `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `CRON_SECRET` (any long random string), `RESEND_API_KEY` and `MAIL_FROM`, `NEXT_PUBLIC_SITE_URL`.
 3. **Paystack dashboard:** set the webhook URL to `https://<your-domain>/api/paystack/webhook` (locally, use an ngrok address). Payouts: turn off the "require OTP to approve transfers" setting for API transfers, or the payout call will stall waiting for a code. Transfers are paid from your *settled* Paystack balance, so customer payments must have settled before a payout can succeed.
 4. **Expiry job:** `vercel.json` calls `/api/cron/refund-expired` every 10 minutes (Vercel sends `CRON_SECRET`). Vercel's free plan limits how often cron jobs run; if yours is limited, call that URL with the header `Authorization: Bearer <CRON_SECRET>` from Supabase `pg_cron` + `pg_net`, or from any scheduler. It expires lawyer requests older than 48 hours and retries any refund that failed.
@@ -109,3 +115,18 @@ These are in the code. Each needs the configuration below before it works.
 
 ## Still not built
 Admin two-step login (MFA), CAPTCHA, direct-to-storage uploads over 4MB with virus scanning, SMS codes, WhatsApp alerts, a news/social media-watch feed, a real AI model behind the draft-reply and summary buttons, and a strict Content-Security-Policy.
+
+
+---
+
+## Involving the NCAA (what Ledgerly can and cannot do)
+**Do not say or imply that the NCAA backs, endorses or partners with Ledgerly unless the NCAA has agreed to that in writing.** Doing so would be a misrepresentation and could expose you to claims. What is true, and what the app now does:
+- Under Part 19 of the Nigeria Civil Aviation Regulations, a passenger may complain to the NCAA's Consumer Protection Directorate if an airline does not resolve a complaint. Law-firm commentary puts the airline's window at 7 days (Regulation 19.20). **Confirm the exact rule and wording with a Nigerian lawyer and the NCAA before you publish it as fact.** The 7 days is set in `supabase/migrations/006_case_management.sql` (`set_response_due`) and `RESOLUTION_WINDOW_DAYS` in `lib/constants.ts`.
+- The app tracks each complaint's deadline and shows airlines a factual notice when one is overdue. After the deadline (or after the customer rejects an offer) the customer can ask Ledgerly to intervene, and can download a complete **complaint packet** (`/track/packet`) to file with the NCAA themselves.
+- Admins can message both parties and **record** an NCAA referral (with the NCAA's reference). The airline is told. The referral itself is a human action done outside this app, so check how the NCAA wants complaints submitted.
+- To make the NCAA relationship official: write to the NCAA Consumer Protection Directorate proposing a referral arrangement or memorandum of understanding (what data you would share, with the passenger's consent). Only after it is signed can the site say "recognised" or "in partnership with".
+- If the Directorate does not resolve a complaint, commentary says passengers can go on to the Federal Competition and Consumer Protection Commission (FCCPC). A line about this can be added to the customer page once a lawyer confirms the wording.
+
+## Security reminders
+- Never share `.env.local` or a zip that contains it. If it has been shared, rotate the Supabase service-role key, the Paystack secret key, the email password and `OTP_SECRET`, then update Vercel.
+- `RESEND_API_KEY` in `.env.local` is no longer used and can be deleted. Email uses the `SMTP_*` values.

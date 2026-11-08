@@ -1,6 +1,9 @@
 'use client'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { CATEGORIES, DESIRED } from '@/lib/constants'
+import { startSubmit, verifySubmit, submitComplaint, type Details } from '@/app/actions/guest'
+const CATS = CATEGORIES
 import { startSubmit, verifySubmit, submitComplaint, type Details } from '@/app/actions/guest'
 const CATS = ['Flight Delay / Cancellation', 'Baggage', 'Safety / Medical Incident', 'Refund / Billing', 'Cabin & Crew Service', 'Boarding & Airport']
 const inp = 'w-full rounded-lg border bg-card p-2 text-sm', lb = 'mb-1 block text-xs text-muted', btn = 'rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50'
@@ -50,6 +53,8 @@ export default function SubmitFlow({ airlines, initial }: { airlines: { slug: st
           <div><label className={lb}>Category</label><select name="category" className={inp}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
           <div><label className={lb}>Subject</label><input name="subject" className={inp} maxLength={120} /></div>
           <div className="md:col-span-2"><label className={lb}>What happened? (If anyone is in danger right now, alert the cabin crew or emergency services first.)</label><textarea name="description" rows={5} className={inp} maxLength={4000} /></div>
+          <div><label className={lb}>What would you like the airline to do?</label><select name="desired" className={inp}>{DESIRED.map((d) => <option key={d}>{d}</option>)}</select></div>
+          <div><label className={lb}>Anything to add about what you want (optional)</label><input name="desiredNote" maxLength={1000} className={inp} /></div>
           <div><label className={lb}>Your rating of this flight</label><div className="flex gap-1">{[1, 2, 3, 4, 5].map((n) => <button type="button" key={n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => setRating(n)} className={`text-2xl ${n <= rating ? 'text-amber-500' : 'text-slate-300'}`}>★</button>)}</div></div>
           <div><label className={lb}>Attachments (images or PDF, up to 5 files and 4MB total)</label><input name="files" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="text-sm" /></div>
           <label className="flex gap-2 text-sm md:col-span-2"><input type="checkbox" name="consent" /> <span>I accept the <Link className="underline" href="/legal/terms" target="_blank">Terms</Link> and <Link className="underline" href="/legal/privacy" target="_blank">Privacy Policy</Link>.</span></label>
