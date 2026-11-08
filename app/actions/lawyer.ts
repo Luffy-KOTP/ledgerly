@@ -27,6 +27,7 @@ export async function applyLawyer(_: FormState, fd: FormData): Promise<FormState
   if (fd.get('consent') !== 'on') return { error: 'Please accept the Lawyer Terms and Privacy Policy.' }
   const { data, error } = await (await supabaseServer()).auth.signUp({ email, password, options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`, data: { full_name: name } } })
   if (error) return { error: signUpError(error) }
+  if (error) return { error: 'Could not create the account. Try a different email or password.' }
   const done = { message: 'Check your email to confirm your address. We will verify your credentials and assign your grade before you appear to customers.' }
   const user = data.user
   if (!user || user.identities?.length === 0) return done

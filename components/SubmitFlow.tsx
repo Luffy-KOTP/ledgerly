@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { CATEGORIES, DESIRED } from '@/lib/constants'
 import { startSubmit, verifySubmit, submitComplaint, type Details } from '@/app/actions/guest'
 const CATS = CATEGORIES
+import { startSubmit, verifySubmit, submitComplaint, type Details } from '@/app/actions/guest'
+const CATS = ['Flight Delay / Cancellation', 'Baggage', 'Safety / Medical Incident', 'Refund / Billing', 'Cabin & Crew Service', 'Boarding & Airport']
 const inp = 'w-full rounded-lg border bg-card p-2 text-sm', lb = 'mb-1 block text-xs text-muted', btn = 'rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50'
 const LABELS = ['Your details', 'Verify it’s you', 'Your complaint', 'Done']
 

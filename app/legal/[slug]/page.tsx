@@ -21,3 +21,8 @@ async function Doc({ params }: { params: PageProps<'/legal/[slug]'>['params'] })
 export default function Legal(props: PageProps<'/legal/[slug]'>) {
   return <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}><Doc params={props.params} /></Suspense>
 }
+export default async function Legal(props: PageProps<'/legal/[slug]'>) {
+  const { slug } = await props.params
+  if (!DOCS.includes(slug)) notFound() // whitelist: never read arbitrary paths
+  return <article className="prose mx-auto max-w-3xl dark:prose-invert"><ReactMarkdown>{await read(slug)}</ReactMarkdown></article>
+}

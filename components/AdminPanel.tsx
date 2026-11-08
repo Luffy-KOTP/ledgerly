@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { signOut } from '@/app/actions/auth'
 import { setAirline, setLawyer, lawyerDocs, saveBands, markRegulator, ledgerlyMessage, referToRegulator } from '@/app/actions/admin'
+import { setAirline, setLawyer, lawyerDocs, saveBands, markRegulator } from '@/app/actions/admin'
 import { GRADES, GRADE_LABEL, naira } from '@/lib/constants'
 
 type Band = { grade: string; min: number; max: number; pct: number }
@@ -13,11 +14,13 @@ const Table = ({ head, children }: { head: string[]; children: React.ReactNode }
 export default function AdminPanel({ email }: { email: string }) {
   const sb = useMemo(() => supabaseBrowser(), [])
   const [air, setAir] = useState<Row[]>([]), [law, setLaw] = useState<Row[]>([]), [alerts, setAlerts] = useState<Row[]>([]), [cases, setCases] = useState<Row[]>([]), [esc, setEsc] = useState<Row[]>([]), [now, setNow] = useState(0), [bands, setBands] = useState<Band[]>([]), [docs, setDocs] = useState<Record<string, { name: string; url: string }[]>>({}), [pick, setPick] = useState<Record<string, string>>({}), [note, setNote] = useState('')
+  const [air, setAir] = useState<Row[]>([]), [law, setLaw] = useState<Row[]>([]), [alerts, setAlerts] = useState<Row[]>([]), [cases, setCases] = useState<Row[]>([]), [bands, setBands] = useState<Band[]>([]), [docs, setDocs] = useState<Record<string, { name: string; url: string }[]>>({}), [pick, setPick] = useState<Record<string, string>>({}), [note, setNote] = useState('')
   const [tick, setTick] = useState(0), reload = () => setTick((n) => n + 1)
   useEffect(() => {
     let live = true
     ;(async () => {
       const [a, l, al, k, b, cp] = await Promise.all([
+      const [a, l, al, k, b] = await Promise.all([
         sb.from('airlines').select('*').order('created_at', { ascending: false }), sb.from('lawyers').select('*').order('created_at', { ascending: false }),
         sb.from('alerts').select('*, airlines(name)').order('created_at', { ascending: false }).limit(50),
         sb.from('legal_cases').select('*, lawyers(full_name), payments(status), payouts(status)').order('created_at', { ascending: false }).limit(100),
@@ -26,6 +29,9 @@ export default function AdminPanel({ email }: { email: string }) {
       ])
       if (!live) return
       setAir(a.data ?? []); setLaw(l.data ?? []); setAlerts(al.data ?? []); setCases(k.data ?? []); setEsc(cp.data ?? []); setNow(Date.now())
+      ])
+      if (!live) return
+      setAir(a.data ?? []); setLaw(l.data ?? []); setAlerts(al.data ?? []); setCases(k.data ?? [])
       setBands(GRADES.map((g) => { const r = (b.data ?? []).find((x: Row) => x.grade === g); return { grade: g, min: (r?.min_price_kobo ?? 0) / 100, max: (r?.max_price_kobo ?? 0) / 100, pct: Number(r?.platform_fee_pct ?? 0) } }))
     })()
     return () => { live = false }

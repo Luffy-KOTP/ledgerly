@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plane } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { Geist, Geist_Mono } from "next/font/google";
 import ThemeToggle from "@/components/ThemeToggle";
 import MobileNav from "@/components/MobileNav";
@@ -14,7 +15,12 @@ export const metadata: Metadata = {
   title: { default: "Ledgerly: airline complaints, tracked to a resolution", template: "%s | Ledgerly" },
   description: "Complain directly to your airline, follow it to a resolution, and escalate to a lawyer or the regulator if it is not resolved.",
   openGraph: { title: "Ledgerly", description: "Airline complaints, tracked to a resolution.", type: "website", siteName: "Ledgerly" },
+  title: "Ledgerly – airline complaints",
+  description: "Complain directly to your airline and track the outcome.",
 };
+// Runs before first paint: saved choice wins, otherwise follow the device setting. Prevents a flash of the wrong theme.
+const THEME_INIT = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+const LEGAL = [["terms", "Terms"], ["privacy", "Privacy"], ["refunds", "Refunds"], ["cookies", "Cookies"]];
 
 // Runs before first paint: saved choice wins, otherwise follow the device setting. Prevents a flash of the wrong theme.
 const THEME_INIT = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
@@ -42,6 +48,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
           <p className="border-t px-4 py-4 text-center text-xs text-muted">Ledgerly is an independent platform. It is not part of, endorsed by, or affiliated with the Nigerian Civil Aviation Authority or any airline, and it does not give legal advice.</p>
         </footer>
+      <body className="min-h-full flex flex-col">
+        <header className="bg-slate-900 text-white"><nav className="mx-auto flex max-w-5xl flex-wrap gap-5 p-4 text-sm"><Link href="/" className="mr-auto text-lg font-bold">✈ Ledgerly</Link><Link href="/submit">Submit a complaint</Link><Link href="/track">Track a complaint</Link><Link href="/apply-lawyer">For lawyers</Link><Link href="/login">Staff login</Link><ThemeToggle /></nav></header>
+        <main className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-8">{children}</main>
+        <footer className="mx-auto w-full max-w-5xl p-4 text-xs text-muted">{LEGAL.map(([s, t]) => <Link key={s} href={`/legal/${s}`} className="mr-4 underline">{t}</Link>)}</footer>
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ This project uses Next.js 16 with Cache Components. Read `AGENTS.md` and the bun
 1. `npm install`
 2. Create a Supabase project, open the SQL editor and run `001_schema.sql` then `002_realtime.sql`, then `003_grants.sql` from `supabase/migrations/`.
 3. Copy `.env.example` to `.env.local` and fill it in (`OTP_SECRET`: `openssl rand -hex 32`). Without `SMTP_*` settings, one-time codes and emails print in the terminal during development.
+3. Copy `.env.example` to `.env.local` and fill it in (`OTP_SECRET`: `openssl rand -hex 32`). Without `RESEND_API_KEY`, one-time codes print in the terminal during development.
 4. In Supabase, add an airline row (`airlines`, status `active`) so the directory is not empty.
 5. `npm run dev`, then open http://localhost:3000
 

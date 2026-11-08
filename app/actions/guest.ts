@@ -10,6 +10,7 @@ import { CATEGORIES, DESIRED, FINISHED } from '@/lib/constants'
 export type Details = { name: string; email: string; phone: string; airline: string; flight: string; date: string; route: string; booking: string }
 type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, PHONE = /^\+[1-9]\d{7,14}$/, FLIGHT = /^[A-Z0-9]{2}\d{1,4}$/, REF = /^LDG-\d{4}-\d{5}$/
+const CATS = ['Flight Delay / Cancellation', 'Baggage', 'Safety / Medical Incident', 'Refund / Billing', 'Cabin & Crew Service', 'Boarding & Airport']
 const MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], MAX_TOTAL = 4 * 1024 * 1024
 const fail = (error: string) => ({ ok: false as const, error })
 
@@ -51,6 +52,7 @@ export async function submitComplaint(fd: FormData): Promise<Res<{ ref: string; 
   const desired = s('desired'), desiredNote = s('desiredNote').slice(0, 1000)
   if (!(CATEGORIES as readonly string[]).includes(category)) return fail('Choose a category.')
   if (!(DESIRED as readonly string[]).includes(desired)) return fail('Tell us what you would like the airline to do.')
+  if (!CATS.includes(category)) return fail('Choose a category.')
   if (subject.length < 3 || subject.length > 120) return fail('Add a short subject.')
   if (description.length < 30 || description.length > 4000) return fail('Describe the issue in 30 to 4000 characters.')
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) return fail('Pick a star rating.')
@@ -63,6 +65,7 @@ export async function submitComplaint(fd: FormData): Promise<Res<{ ref: string; 
   const { data: c, error } = await db.from('complaints').insert({
     airline_id: airline.id, customer_name: d.name, customer_email: d.email, customer_phone: d.phone, flight_number: d.flight, flight_date: d.date,
     route: d.route || null, booking_ref: d.booking || null, category, subject, description, rating, desired_resolution: desiredNote ? `${desired}: ${desiredNote}` : desired, is_critical: critical, severity: critical ? 'critical' : rating <= 2 ? 'medium' : 'low',
+    route: d.route || null, booking_ref: d.booking || null, category, subject, description, rating, is_critical: critical, severity: critical ? 'critical' : rating <= 2 ? 'medium' : 'low',
   }).select('id, ref').single()
   if (error || !c) return fail('Something went wrong. Please try again.')
   await db.from('complaint_events').insert([{ complaint_id: c.id, kind: 'submitted', detail: 'Complaint submitted' }, { complaint_id: c.id, kind: 'verified', detail: 'Identity verified by one-time code' }])
